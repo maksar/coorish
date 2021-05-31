@@ -1,0 +1,6 @@
+.direnv/
+dist-newstyle/
+.env*
+!.env.example
+result
+result-doc

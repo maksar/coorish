@@ -1,0 +1,44 @@
+cabal-version:      2.4
+name:               coorish
+version:            0.1.0.0
+author:             Shestakov, Aleksandr
+maintainer:         a.shestakov@itransition.com
+extra-source-files: CHANGELOG.md
+
+executable coorish
+  main-is:            Main.hs
+  other-modules:
+    Env
+    Jira
+    Ldap
+
+  default-extensions:
+    DeriveGeneric
+    LambdaCase
+    OverloadedStrings
+    RecordWildCards
+    TypeApplications
+
+  build-depends:
+    , aeson
+    , attoparsec
+    , base                 ^>=4.14.1.0
+    , base64-bytestring
+    , bytestring
+    , case-insensitive
+    , containers
+    , email-validate
+    , envy
+    , extra
+    , http-client
+    , http-client-tls
+    , ldap-client
+    , servant
+    , servant-client
+    , servant-client-core
+    , template-haskell
+    , text
+    , text-ldap
+
+  hs-source-dirs:     app
+  default-language:   Haskell2010
