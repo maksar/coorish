@@ -11,7 +11,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       with nixpkgs.legacyPackages.${system};
       let
-        defaultPackageName = "Project manager";
+        defaultPackageName = "project-manager";
 
         config = field: groups: {
           COORISH_JIRA_FIELD = field;
@@ -19,12 +19,12 @@
         };
 
         configs = {
-          "Technical Coordinator" = p:
+          "technical-cordinator" = p:
             p "customfield_23270" "Tech Coordinators";
-          "CTO Office Representative" = p: p "customfield_22070" "CTO Office";
-          "Project manager" = p: p "customfield_13075" "Managers All";
-          "Team Head" = p: p "customfield_22470" "Production Heads";
-          "Project Coordinator" = p: p "customfield_12880" "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
+          "cto-office-representative" = p: p "customfield_22070" "CTO Office";
+          "project-manager" = p: p "customfield_13075" "Managers All";
+          "team-head" = p: p "customfield_22470" "Production Heads";
+          "project-coordinator" = p: p "customfield_12880" "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
         };
 
         package = (field: groups:
