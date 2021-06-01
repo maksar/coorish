@@ -27,9 +27,15 @@
           "project-coordinator" = p: p "customfield_12880" "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
         };
 
-        package = (field: groups:
+        package = (name: field: groups:
           haskell.lib.overrideCabal
-          (haskellPackages.callCabal2nix "coorish" ./. { }) (drv: {
+          (haskellPackages.callCabal2nix "coorish" ./. { }) (drv: rec {
+            pname = "coorish-${name}";
+
+            postInstall = ''
+              mv $out/bin/coorish $out/bin/${pname}
+            '';
+
             prePatch = lib.concatStrings
               (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"\n")
                 (config field groups));
@@ -37,11 +43,11 @@
       in rec {
         defaultApp = {
           type = "app";
-          program = "${defaultPackage}/bin/coorish";
+          program = "${defaultPackage}/bin/coorish-${defaultPackageName}";
         };
         defaultPackage = packages.${defaultPackageName};
 
-        packages = builtins.mapAttrs (n: l: l package) configs;
+        packages = builtins.mapAttrs (n: l: l (package n)) configs;
 
         devShell = (((haskell.lib.addBuildTools defaultPackage [
           haskellPackages.fswatcher
