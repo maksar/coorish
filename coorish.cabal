@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               coorish
-version:            0.1.0.0
+version:            0.1.0.1
 author:             Shestakov, Aleksandr
 maintainer:         a.shestakov@itransition.com
 extra-source-files: CHANGELOG.md
@@ -13,6 +13,7 @@ executable coorish
     Ldap
 
   default-extensions:
+    NoImplicitPrelude
     DeriveGeneric
     LambdaCase
     OverloadedStrings
@@ -22,17 +23,15 @@ executable coorish
   build-depends:
     , aeson
     , attoparsec
-    , base                 ^>=4.14.1.0
+    , base
     , base64-bytestring
-    , bytestring
     , case-insensitive
-    , containers
     , email-validate
     , envy
-    , extra
     , http-client
     , http-client-tls
     , ldap-client
+    , relude
     , servant
     , servant-client
     , servant-client-core

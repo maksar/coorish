@@ -4,8 +4,7 @@
 
 module Jira (projectCards, fieldName, updateTechnicalCoordinators, JiraConfig, ProjectCard (key, projectName, people), Person (displayName)) where
 
-import Control.Applicative (Alternative ((<|>)))
-import Control.Monad.IO.Class (MonadIO (liftIO))
+import Relude
 import Data.Aeson
   ( FromJSON (parseJSON),
     KeyValue ((.=)),
@@ -16,16 +15,9 @@ import Data.Aeson
     (.:?),
   )
 import Data.Attoparsec.ByteString (parseOnly)
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.CaseInsensitive as CI
-import qualified Data.List.NonEmpty as NE
-import Data.Map ((!))
-import qualified Data.Map as M
-import Data.Maybe (fromMaybe)
-import qualified Data.Proxy as P
-import Data.Text (Text)
-import qualified Data.Text as T
+import Data.ByteString.Base64 ( encode )
+import Data.CaseInsensitive (mk)
+import Data.Text (replace)
 import Env (Config (jiraField), configValue, prefix)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (newManager)
@@ -107,7 +99,7 @@ instance ToJSON Coordinator where
   toJSON Coordinator {..} = object ["name" .= _name]
 
 fromPerson :: Person -> Coordinator
-fromPerson Person {..} = Coordinator $ T.pack $ BS.unpack $ localPart $ either error id $ parseOnly addrSpec (BS.pack $ T.unpack name)
+fromPerson Person {..} = Coordinator $ decodeUtf8 $ localPart $ either (error . show) id $ parseOnly addrSpec (encodeUtf8 name)
 
 newtype UpdatePayload = UpdatePayload {coordinators :: [Coordinator]} deriving (Show, Eq)
 
@@ -137,7 +129,7 @@ type JiraAPI =
 searchForIssuesUsingJql :: Text -> Text -> Int -> ClientM SearchResult
 updateTechnicalCoordinators_ :: Text -> UpdatePayload -> ClientM NoContent
 obtainFieldConnfig :: ClientM [JiraField]
-searchForIssuesUsingJql :<|> updateTechnicalCoordinators_ :<|> obtainFieldConnfig = client (P.Proxy :: P.Proxy JiraAPI)
+searchForIssuesUsingJql :<|> updateTechnicalCoordinators_ :<|> obtainFieldConnfig = client (Proxy :: Proxy JiraAPI)
 
 updateTechnicalCoordinators :: JiraConfig -> Text -> [Person] -> IO ()
 updateTechnicalCoordinators config projectKey people = do
@@ -148,19 +140,22 @@ updateTechnicalCoordinators config projectKey people = do
 runClient :: JiraConfig -> ClientM a -> IO a
 runClient JiraConfig {..} cl = do
   manager <- liftIO $ newManager tlsManagerSettings
-  url <- parseBaseUrl $ T.unpack url
-  result <- runClientM cl $ (mkClientEnv manager url) {makeClientRequest = const $ defaultMakeClientRequest url . addHeader (CI.mk "Authorization") ("Basic " ++ BS.unpack (Base64.encode $ BS.pack $ T.unpack (username <> ":" <> password)))}
+  url <- parseBaseUrl $ toString url
+  result <- runClientM cl $ (mkClientEnv manager url) {makeClientRequest = const $ defaultMakeClientRequest url . addHeader (mk "Authorization") ("Basic " ++ decodeUtf8 (encode $ encodeUtf8 (username <> ":" <> password)))}
   return $ either (error . show) id result
 
 projectCards :: JiraConfig -> Text -> IO [ProjectCard]
 projectCards config@JiraConfig {..} fieldName = do
   result <- runClient config $ do
-    searchForIssuesUsingJql (T.replace "{fieldName}" fieldName jql) ($(configValue jiraField) <> ",summary") 1000
+    searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) ($(configValue jiraField) <> ",summary") 1000
   pure $ cards result
 
 fieldName :: JiraConfig -> Text -> IO Text
 fieldName config name = do
   result <- runClient config obtainFieldConnfig
-  return $ M.fromList (Prelude.map toPair result) ! $(configValue jiraField)
+  return $ lookup $(configValue jiraField) result
   where
-    toPair f = (jiraFieldId f, jiraFieldName f)
+    lookup key (x : xs)
+      | key == jiraFieldId x = jiraFieldName x
+      | otherwise = lookup key xs
+    lookup i [] = error i <> " wasn't found"

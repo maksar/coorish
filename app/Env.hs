@@ -3,10 +3,9 @@
 
 module Env (readConfig, prefix, Config (jiraField, ldapGroups), configValue) where
 
+import Relude
+import Data.Text (splitOn)
 import Data.Char (toUpper)
-import Data.List (intercalate)
-import Data.Text (Text)
-import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Language.Haskell.TH.Syntax (Exp, Lift, Q, runIO)
 import System.Envy
@@ -26,7 +25,7 @@ data Config = Config
 
 instance Var [Text] where
   toVar = show
-  fromVar = pure . T.splitOn "," . T.pack
+  fromVar = pure . splitOn "," . toText
 
 base :: String
 base = "COORISH"
@@ -38,7 +37,7 @@ instance FromEnv Config where
   fromEnv = gFromEnvCustom defOption {customPrefix = base}
 
 readConfig :: FromEnv a => IO a
-readConfig = either error id <$> decodeEnv
+readConfig = either (error . show) id <$> decodeEnv
 
 configValue :: Lift t => (Config -> t) -> Q Exp
 configValue f = do

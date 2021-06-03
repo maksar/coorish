@@ -1,14 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Ldap (technicalCoordinators, LdapConfig) where
 
-import Control.Monad.Extra (concatMapM)
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Lazy.Char8 as BSLC
-import Data.List (nub)
-import Data.List.NonEmpty (fromList, toList)
-import Data.Text (Text)
-import qualified Data.Text as T
+import Relude
+-- import Control.Monad.Extra (concatMapM)
 import Env (Config (ldapGroups), configValue, prefix)
 import GHC.Generics (Generic)
 import Ldap.Client
@@ -56,15 +52,18 @@ data LdapConfig = LdapConfig
 
 instance Var PortNumber where
   toVar = show
-  fromVar = pure . read
+  fromVar = readMaybe
 
 instance FromEnv LdapConfig where
   fromEnv = gFromEnvCustom defOption {customPrefix = prefix "LDAP"}
 
+instance Ord Dn where
+  compare (Dn a) (Dn b) = compare a b
+
 withLdap :: LdapConfig -> (Ldap -> IO a) -> IO a
 withLdap LdapConfig {..} rest = do
-  with' (Tls (T.unpack host) insecureTlsSettings) port $ \ldap -> do
-    bind ldap (Dn username) $ Password $ BSC.pack $ T.unpack password
+  with' (Tls (toString host) insecureTlsSettings) port $ \ldap -> do
+    bind ldap (Dn username) $ Password $ encodeUtf8 password
     rest ldap
 
 execute :: Ldap -> LdapConfig -> L.AttrValue -> Text -> [Filter] -> [Attr] -> IO [Dn]
@@ -83,7 +82,7 @@ execute ldap LdapConfig {..} objectClass base query attrs = do
       attrs
   return $ extract attrs al
   where
-    extract attrs groupAttrList = nub $ Prelude.concatMap (map (Dn . T.pack . BSC.unpack) . snd) $ filter (\attr -> fst attr `elem` attrs) groupAttrList
+    extract attrs groupAttrList = ordNub $ concatMap (map (Dn . decodeUtf8) . snd) $ filter (\attr -> fst attr `elem` attrs) groupAttrList
 
 searchGroup :: Ldap -> LdapConfig -> Text -> IO [Dn]
 searchGroup ldap config@LdapConfig {..} name = do
@@ -93,12 +92,12 @@ searchGroup ldap config@LdapConfig {..} name = do
       config
       "group"
       groupsBase
-      [ Attr "cn" := BSC.pack (T.unpack name),
-        Attr "mailNickname" := BSC.pack (T.unpack name)
+      [ Attr "cn" := encodeUtf8 name,
+        Attr "mailNickname" := encodeUtf8 name
       ]
       [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member"]
 
-  concatMapM extractGroup members
+  join <$> mapM extractGroup members
   where
     extractGroup group =
       if extractDn "OU" group `elem` groupsContainers
@@ -112,12 +111,12 @@ searchUser ldap config@LdapConfig {..} dn =
     config
     "user"
     usersBase
-    [ Attr "cn" := BSC.pack (T.unpack dn)
+    [ Attr "cn" := encodeUtf8 dn
     ]
     [Attr "displayName"]
 
-extractDn :: BSC.ByteString -> Dn -> Text
-extractDn part (Dn d) = T.pack $ BSC.unpack $ firstContainer part $ reverse $ toList $ either error id <$> runLdapParser dn $ BSLC.pack $ T.unpack d
+extractDn :: ByteString -> Dn -> Text
+extractDn part (Dn d) = decodeUtf8 $ firstContainer part $ reverse $ toList $ either (error . show) id <$> runLdapParser dn $ encodeUtf8 d
   where
     firstContainer part ne = go ne
       where
@@ -128,6 +127,6 @@ extractDn part (Dn d) = T.pack $ BSC.unpack $ firstContainer part $ reverse $ to
 technicalCoordinators :: LdapConfig -> IO [Text]
 technicalCoordinators config@LdapConfig {..} = do
   withLdap config $ \ldap -> do
-    groupMembers <- concatMapM (searchGroup ldap config) $(configValue ldapGroups)
+    groupMembers <- join <$> mapM (searchGroup ldap config) $(configValue ldapGroups)
     let members = map (extractDn "CN") $ filter (\dn -> extractDn "OU" dn `elem` usersContainers) groupMembers
-    map (\(Dn d) -> d) <$> concatMapM (searchUser ldap config) members
+    map (\(Dn d) -> d) . join <$> mapM (searchUser ldap config) members

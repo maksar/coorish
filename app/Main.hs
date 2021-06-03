@@ -2,9 +2,9 @@
 
 module Main where
 
+import Relude
 import Control.Monad (forM_, unless, when)
-import Data.List
-import qualified Data.Text as T
+import Data.List (partition)
 import Env
   ( Config (jiraField, ldapGroups),
     configValue,
@@ -29,6 +29,6 @@ main = do
     let (validPeople, invalidPeople) = partition (\person -> Jira.displayName person `elem` activeDirectoryPeople) people
 
     unless (null invalidPeople) $ do
-      putStrLn $ T.unpack $ "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") has some people in '" <> fieldName <> "' field not from '" <> T.intercalate "; " $(configValue ldapGroups) <> "' AD group: '" <> T.intercalate "; " (map Jira.displayName invalidPeople) <> "'"
+      putTextLn $ "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") has some people in '" <> fieldName <> "' field not from '" <> unwords (intersperse "; " $(configValue ldapGroups)) <> "' AD group: '" <> unwords (intersperse "; " (map Jira.displayName invalidPeople)) <> "'"
 
--- Jira.updateTechnicalCoordinators jiraConfig "PROJCARD-2243" validPeople
+    -- Jira.updateTechnicalCoordinators jiraConfig (Jira.key card) validPeople
