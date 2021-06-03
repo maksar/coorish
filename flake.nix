@@ -60,6 +60,7 @@
           ormolu
           cabal-install
           hlint
+          haskellPackages.stan
 
         ])).envFunc { }).overrideAttrs
           (f: configs.${defaultPackageName} config);

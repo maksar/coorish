@@ -12,12 +12,14 @@ executable coorish
     Jira
     Ldap
 
+  ghc-options:        -fwrite-ide-info -hiedir=.hie
   default-extensions:
     NoImplicitPrelude
     DeriveGeneric
     LambdaCase
     OverloadedStrings
     RecordWildCards
+    StrictData
     TypeApplications
 
   build-depends:

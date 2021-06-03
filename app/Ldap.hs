@@ -4,7 +4,6 @@
 module Ldap (technicalCoordinators, LdapConfig) where
 
 import Relude
--- import Control.Monad.Extra (concatMapM)
 import Env (Config (ldapGroups), configValue, prefix)
 import GHC.Generics (Generic)
 import Ldap.Client
@@ -66,19 +65,14 @@ withLdap LdapConfig {..} rest = do
     bind ldap (Dn username) $ Password $ encodeUtf8 password
     rest ldap
 
-execute :: Ldap -> LdapConfig -> L.AttrValue -> Text -> [Filter] -> [Attr] -> IO [Dn]
+execute :: Ldap -> LdapConfig -> L.AttrValue -> Text -> NonEmpty Filter -> [Attr] -> IO [Dn]
 execute ldap LdapConfig {..} objectClass base query attrs = do
   (SearchEntry _ al : _) <-
     search
       ldap
       (Dn base)
       (scope WholeSubtree)
-      ( And $
-          fromList
-            [ Attr "objectClass" := objectClass,
-              Or $ fromList query
-            ]
-      )
+      (And $ Attr "objectClass" := objectClass :| [ Or $ query ])
       attrs
   return $ extract attrs al
   where
@@ -92,9 +86,7 @@ searchGroup ldap config@LdapConfig {..} name = do
       config
       "group"
       groupsBase
-      [ Attr "cn" := encodeUtf8 name,
-        Attr "mailNickname" := encodeUtf8 name
-      ]
+      (Attr "cn" := encodeUtf8 name :| [ Attr "mailNickname" := encodeUtf8 name ])
       [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member"]
 
   join <$> mapM extractGroup members
@@ -111,18 +103,26 @@ searchUser ldap config@LdapConfig {..} dn =
     config
     "user"
     usersBase
-    [ Attr "cn" := encodeUtf8 dn
-    ]
+    (Attr "cn" := encodeUtf8 dn :| [])
     [Attr "displayName"]
 
 extractDn :: ByteString -> Dn -> Text
-extractDn part (Dn d) = decodeUtf8 $ firstContainer part $ reverse $ toList $ either (error . show) id <$> runLdapParser dn $ encodeUtf8 d
+extractDn part (Dn d) = decodeUtf8 $ lastContainer part $ either (error . show) id <$> runLdapParser dn $ encodeUtf8 d
   where
-    firstContainer part ne = go ne
-      where
-        go (S (AttrType t, AttrValue v) : _) | t == part = v
-        go (_ : xs) = go xs
-        go [] = ""
+    lastContainer part list = last $ mapMaybe (isS part) $ toList list
+
+    last [] = error "Could not extract " <> part <> " from " <> encodeUtf8 d
+    last [x] = x
+    last (x : xs) = last xs
+
+    isS part (S (AttrType t, AttrValue v)) | t == part = pure v
+    isS _ _ = Nothing
+
+      -- go ne
+      -- where
+      --   go [] = ""
+      --   go [S (AttrType t, AttrValue v)] | t == part = v
+      --   go (_ : xs) = go xs
 
 technicalCoordinators :: LdapConfig -> IO [Text]
 technicalCoordinators config@LdapConfig {..} = do

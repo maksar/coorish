@@ -4,3 +4,4 @@ dist-newstyle/
 !.env.example
 result
 result-doc
+.hie/
