@@ -4,7 +4,6 @@
 
 module Jira (projectCards, fieldName, updateTechnicalCoordinators, JiraConfig, ProjectCard (key, projectName, people), Person (displayName)) where
 
-import Relude
 import Data.Aeson
   ( FromJSON (parseJSON),
     KeyValue ((.=)),
@@ -15,13 +14,14 @@ import Data.Aeson
     (.:?),
   )
 import Data.Attoparsec.ByteString (parseOnly)
-import Data.ByteString.Base64 ( encode )
+import Data.ByteString.Base64 (encode)
 import Data.CaseInsensitive (mk)
 import Data.Text (replace)
 import Env (Config (jiraField), configValue, prefix)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Relude
 import Servant.API
   ( Capture,
     JSON,

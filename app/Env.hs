@@ -1,13 +1,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Env (readConfig, prefix, Config (jiraField, ldapGroups), configValue) where
 
-import Relude
-import Data.Text (splitOn)
 import Data.Char (toUpper)
+import Data.Text (splitOn)
 import GHC.Generics (Generic)
 import Language.Haskell.TH.Syntax (Exp, Lift, Q, runIO)
+import Relude
 import System.Envy
   ( FromEnv (..),
     Option (customPrefix, dropPrefixCount),

@@ -5,3 +5,4 @@ dist-newstyle/
 result
 result-doc
 .hie/
+.pre-commit-config.yaml

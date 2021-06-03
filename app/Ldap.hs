@@ -1,9 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Ldap (technicalCoordinators, LdapConfig) where
 
-import Relude
 import Env (Config (ldapGroups), configValue, prefix)
 import GHC.Generics (Generic)
 import Ldap.Client
@@ -23,6 +22,7 @@ import Ldap.Client
     with',
   )
 import qualified Ldap.Client as L
+import Relude
 import System.Envy
   ( FromEnv (..),
     Option (customPrefix),
@@ -72,7 +72,7 @@ execute ldap LdapConfig {..} objectClass base query attrs = do
       ldap
       (Dn base)
       (scope WholeSubtree)
-      (And $ Attr "objectClass" := objectClass :| [ Or $ query ])
+      (And $ Attr "objectClass" := objectClass :| [Or query])
       attrs
   return $ extract attrs al
   where
@@ -86,7 +86,7 @@ searchGroup ldap config@LdapConfig {..} name = do
       config
       "group"
       groupsBase
-      (Attr "cn" := encodeUtf8 name :| [ Attr "mailNickname" := encodeUtf8 name ])
+      (Attr "cn" := encodeUtf8 name :| [Attr "mailNickname" := encodeUtf8 name])
       [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member"]
 
   join <$> mapM extractGroup members
@@ -117,12 +117,6 @@ extractDn part (Dn d) = decodeUtf8 $ lastContainer part $ either (error . show) 
 
     isS part (S (AttrType t, AttrValue v)) | t == part = pure v
     isS _ _ = Nothing
-
-      -- go ne
-      -- where
-      --   go [] = ""
-      --   go [S (AttrType t, AttrValue v)] | t == part = v
-      --   go (_ : xs) = go xs
 
 technicalCoordinators :: LdapConfig -> IO [Text]
 technicalCoordinators config@LdapConfig {..} = do

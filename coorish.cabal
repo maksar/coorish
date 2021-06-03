@@ -20,7 +20,6 @@ executable coorish
     OverloadedStrings
     RecordWildCards
     StrictData
-    TypeApplications
 
   build-depends:
     , aeson

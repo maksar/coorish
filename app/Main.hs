@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main where
 
-import Relude
 import Control.Monad (forM_, unless, when)
 import Data.List (partition)
 import Env
@@ -12,6 +12,7 @@ import Env
   )
 import qualified Jira
 import qualified Ldap
+import Relude
 
 main :: IO ()
 main = do
@@ -31,4 +32,4 @@ main = do
     unless (null invalidPeople) $ do
       putTextLn $ "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") has some people in '" <> fieldName <> "' field not from '" <> unwords (intersperse "; " $(configValue ldapGroups)) <> "' AD group: '" <> unwords (intersperse "; " (map Jira.displayName invalidPeople)) <> "'"
 
-    -- Jira.updateTechnicalCoordinators jiraConfig (Jira.key card) validPeople
+-- Jira.updateTechnicalCoordinators jiraConfig (Jira.key card) validPeople
