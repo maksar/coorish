@@ -66,7 +66,7 @@
         };
         defaultPackage = basePackage;
 
-        packages = { coorish = defaultPackage; } // builtins.mapAttrs (n: l: l (package n)) configs;
+        packages = builtins.mapAttrs (n: l: l (package n)) configs;
 
         checks = {
           pre-commit-check = pre-commit-hooks.lib.${system}.run {
