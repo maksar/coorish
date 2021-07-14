@@ -45,15 +45,12 @@
               "Sales,Production Heads,Production Board,RFX & Business Development,Departments Managers";
         };
 
-        basePackage =
-          (haskellPackages.callCabal2nix "coorish" ./. { }).overrideDerivation
-            (drv: {
-              buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
-            });
+        basePackage = haskellPackages.callCabal2nix "coorish" ./. { };
 
         package = (name: field: groups:
           basePackage.overrideDerivation (drv: {
             pname = "coorish-${name}";
+            buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
             postInstall = ''
               mv $out/bin/coorish $out/bin/coorish-${name}
               wrapProgram $out/bin/coorish-${name} --set COORISH_JIRA_FIELD "${field}" --set COORISH_LDAP_GROUPS "${groups}"
@@ -67,9 +64,9 @@
           type = "app";
           program = "${defaultPackage}/bin/coorish-${defaultPackageName}";
         };
-        defaultPackage = packages.${defaultPackageName};
+        defaultPackage = basePackage;
 
-        packages = builtins.mapAttrs (n: l: l (package n)) configs;
+        packages = { coorish = defaultPackage; } // builtins.mapAttrs (n: l: l (package n)) configs;
 
         checks = {
           pre-commit-check = pre-commit-hooks.lib.${system}.run {
