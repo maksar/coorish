@@ -45,16 +45,20 @@
               "Sales,Production Heads,Production Board,RFX & Business Development,Departments Managers";
         };
 
-        package = (name: field: groups:
+        basePackage =
           (haskellPackages.callCabal2nix "coorish" ./. { }).overrideDerivation
             (drv: {
               buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
-              pname = "coorish-${name}";
-              postInstall = ''
-                mv $out/bin/coorish $out/bin/coorish-${name}
-                wrapProgram $out/bin/coorish-${name} --set COORISH_JIRA_FIELD "${field}" --set COORISH_LDAP_GROUPS "${groups}"
-              '';
-            }));
+            });
+
+        package = (name: field: groups:
+          basePackage.overrideDerivation (drv: {
+            pname = "coorish-${name}";
+            postInstall = ''
+              mv $out/bin/coorish $out/bin/coorish-${name}
+              wrapProgram $out/bin/coorish-${name} --set COORISH_JIRA_FIELD "${field}" --set COORISH_LDAP_GROUPS "${groups}"
+            '';
+          }));
 
         cabal-fmt = haskellPackages.cabal-fmt;
       in
