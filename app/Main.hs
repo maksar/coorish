@@ -1,27 +1,22 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main where
 
-import Control.Monad (forM_, unless, when)
+import Control.Monad
 import Data.List (partition)
 import Env
-  ( Config (jiraField, ldapGroups),
-    configValue,
-    readConfig,
-  )
 import qualified Jira
 import qualified Ldap
 import Relude
 
 main :: IO ()
 main = do
+  Config {..} <- readConfig @Config
   ldapConfig <- readConfig @Ldap.LdapConfig
   jiraConfig <- readConfig @Jira.JiraConfig
-  fieldName <- Jira.fieldName jiraConfig $(configValue jiraField)
 
-  activeDirectoryPeople <- Ldap.technicalCoordinators ldapConfig
-  projectCards <- Jira.projectCards jiraConfig fieldName
+  activeDirectoryPeople <- Ldap.technicalCoordinators ldapGroups ldapConfig
+  projectCards <- Jira.projectCards jiraField jiraConfig
 
   forM_ projectCards $ \card -> do
     let people = Jira.people card
@@ -30,6 +25,4 @@ main = do
     let (validPeople, invalidPeople) = partition (\person -> Jira.displayName person `elem` activeDirectoryPeople) people
 
     unless (null invalidPeople) $ do
-      putTextLn $ "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") has some people in '" <> fieldName <> "' field not from '" <> unwords (intersperse "; " $(configValue ldapGroups)) <> "' AD group: '" <> unwords (intersperse "; " (map Jira.displayName invalidPeople)) <> "'"
-
--- Jira.updateTechnicalCoordinators jiraConfig (Jira.key card) validPeople
+      putTextLn $ "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") has some people in '" <> jiraField <> "' field not from '" <> mconcat (intersperse "; " ldapGroups) <> "' AD group: '" <> mconcat (intersperse "; " (map Jira.displayName invalidPeople)) <> "'"

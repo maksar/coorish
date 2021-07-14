@@ -1,27 +1,32 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Jira (projectCards, fieldName, updateTechnicalCoordinators, JiraConfig, ProjectCard (key, projectName, people), Person (displayName)) where
+module Jira (projectCards, JiraConfig, ProjectCard (key, projectName, people), Person (displayName)) where
 
 import Data.Aeson
   ( FromJSON (parseJSON),
     KeyValue ((.=)),
+    Object,
     ToJSON (toJSON),
     object,
     withObject,
     (.:),
     (.:?),
   )
+import Data.Aeson.Types (Object, Parser, Value (..))
 import Data.Attoparsec.ByteString (parseOnly)
 import Data.ByteString.Base64 (encode)
 import Data.CaseInsensitive (mk)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map as M
 import Data.Text (replace)
-import Env (Config (jiraField), configValue, prefix)
+import Env (Config (jiraField), prefix)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Relude
+import Relude.Extra
 import Servant.API
   ( Capture,
     JSON,
@@ -80,32 +85,23 @@ data ProjectCard = ProjectCard
   }
   deriving (Show, Eq, Generic)
 
-instance FromJSON ProjectCard where
+instance FromJSON (Text -> ProjectCard) where
   parseJSON = withObject "card" $ \card -> do
     key <- card .: "key"
     fields <- card .: "fields"
     projectName <- fields .: "summary"
-    peopleMaybe <- fields .:? $(configValue jiraField) <|> fmap (replicate 1) <$> fields .:? $(configValue jiraField)
-    pure $ ProjectCard key projectName $ fromMaybe [] peopleMaybe
+    allPossiblePeople <- M.fromList <$> mapM parser (HM.toList fields)
+    pure $ \feild -> ProjectCard key projectName $ fromMaybe [] $ join $ lookup feild allPossiblePeople
+
+parser :: FromJSON a => (Text, Value) -> Parser (Text, Maybe [a])
+parser (x, field) = (x,) <$> (parseJSON field <|> fmap (replicate 1) <$> parseJSON field) <|> pure (x, Nothing)
 
 newtype SearchResult = SearchResult {cards :: [ProjectCard]} deriving (Show, Eq, Generic)
 
-instance FromJSON SearchResult where
-  parseJSON = withObject "response" $ \response -> SearchResult <$> response .: "issues"
-
-newtype Coordinator = Coordinator {_name :: Text} deriving (Show, Eq)
-
-instance ToJSON Coordinator where
-  toJSON Coordinator {..} = object ["name" .= _name]
-
-fromPerson :: Person -> Coordinator
-fromPerson Person {..} = Coordinator $ decodeUtf8 $ localPart $ either (error . show) id $ parseOnly addrSpec (encodeUtf8 name)
-
-newtype UpdatePayload = UpdatePayload {coordinators :: [Coordinator]} deriving (Show, Eq)
-
-instance ToJSON UpdatePayload where
-  toJSON UpdatePayload {..} = do
-    object ["fields" .= object [$(configValue jiraField) .= coordinators]]
+instance FromJSON (Text -> SearchResult) where
+  parseJSON = withObject "response" $ \response -> do
+    cards <- sequence <$> response .: "issues"
+    pure $ \field -> SearchResult $ cards field
 
 data JiraField = JiraField
   { jiraFieldId :: Text,
@@ -114,28 +110,17 @@ data JiraField = JiraField
   deriving (Generic, Show)
 
 instance FromJSON JiraField where
-  parseJSON = withObject "field" $ \field -> do
-    id <- field .: "id"
-    name <- field .: "name"
-    pure $ JiraField id name
+  parseJSON = withObject "field" $ \field -> JiraField <$> field .: "id" <*> field .: "name"
 
 type RequiredParam = QueryParam' '[Strict, Required]
 
 type JiraAPI =
-  "rest" :> "api" :> "latest" :> "search" :> RequiredParam "jql" Text :> RequiredParam "fields" Text :> RequiredParam "maxResults" Int :> Verb 'GET 200 '[JSON] SearchResult
-    :<|> "rest" :> "api" :> "latest" :> "issue" :> Capture "key" Text :> ReqBody '[JSON] UpdatePayload :> Verb 'PUT 200 '[JSON] NoContent
+  "rest" :> "api" :> "latest" :> "search" :> RequiredParam "jql" Text :> RequiredParam "fields" Text :> RequiredParam "maxResults" Int :> Verb 'GET 200 '[JSON] (Text -> SearchResult)
     :<|> "rest" :> "api" :> "latest" :> "field" :> Verb 'GET 200 '[JSON] [JiraField]
 
-searchForIssuesUsingJql :: Text -> Text -> Int -> ClientM SearchResult
-updateTechnicalCoordinators_ :: Text -> UpdatePayload -> ClientM NoContent
+searchForIssuesUsingJql :: Text -> Text -> Int -> ClientM (Text -> SearchResult)
 obtainFieldConnfig :: ClientM [JiraField]
-searchForIssuesUsingJql :<|> updateTechnicalCoordinators_ :<|> obtainFieldConnfig = client (Proxy :: Proxy JiraAPI)
-
-updateTechnicalCoordinators :: JiraConfig -> Text -> [Person] -> IO ()
-updateTechnicalCoordinators config projectKey people = do
-  runClient config $ do
-    updateTechnicalCoordinators_ projectKey $ UpdatePayload $ map fromPerson people
-  pure ()
+searchForIssuesUsingJql :<|> obtainFieldConnfig = client (Proxy :: Proxy JiraAPI)
 
 runClient :: JiraConfig -> ClientM a -> IO a
 runClient JiraConfig {..} cl = do
@@ -144,18 +129,11 @@ runClient JiraConfig {..} cl = do
   result <- runClientM cl $ (mkClientEnv manager url) {makeClientRequest = const $ defaultMakeClientRequest url . addHeader (mk "Authorization") ("Basic " ++ decodeUtf8 (encode $ encodeUtf8 (username <> ":" <> password)))}
   return $ either (error . show) id result
 
-projectCards :: JiraConfig -> Text -> IO [ProjectCard]
-projectCards config@JiraConfig {..} fieldName = do
-  result <- runClient config $ do
-    searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) ($(configValue jiraField) <> ",summary") 1000
-  pure $ cards result
-
-fieldName :: JiraConfig -> Text -> IO Text
-fieldName config name = do
-  result <- runClient config obtainFieldConnfig
-  return $ lookup $(configValue jiraField) result
-  where
-    lookup key (x : xs)
-      | key == jiraFieldId x = jiraFieldName x
-      | otherwise = lookup key xs
-    lookup i [] = error i <> " wasn't found"
+projectCards :: Text -> JiraConfig -> IO [ProjectCard]
+projectCards fieldName config@JiraConfig {..} = do
+  runClient config $ do
+    fieldsConfig <- obtainFieldConnfig
+    let fieldsMap = M.fromList $ map (\(JiraField i n) -> (n, i)) fieldsConfig
+        fieldId = fromMaybe (error "No field was found") $ lookup fieldName fieldsMap
+    searchResults <- searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) (fieldId <> ",summary") 1000
+    pure $ cards $ searchResults fieldId

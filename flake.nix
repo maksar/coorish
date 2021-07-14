@@ -13,7 +13,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       with nixpkgs.legacyPackages.${system};
       let
-        defaultPackageName = "business-analysts";
+        defaultPackageName = "salesperson";
 
         config = field: groups: {
           COORISH_JIRA_FIELD = field;
@@ -21,14 +21,16 @@
         };
 
         configs = {
-          "technical-cordinator" = p: p "customfield_23270" "Tech Coordinators";
-          "cto-office-representative" = p: p "customfield_22070" "CTO Office";
-          "project-manager" = p: p "customfield_13075" "Managers All";
-          "team-head" = p: p "customfield_22470" "Production Heads";
-          "business-analysts" = p: p "customfield_23271" "Business Analysts All";
-          "project-coordinator" = p:
-            p "customfield_12880"
-              "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
+          "technical-cordinator" = p: p "Technical Coordinator" "Tech Coordinators";
+          "cto-office-representative" = p: p "CTO Office Representative" "CTO Office";
+          "project-manager" = p: p "Project manager" "Managers All";
+          "team-head" = p: p "Team Head" "Production Heads";
+          "business-analysts" = p: p "Business Analyst" "Business Analysts All";
+          "project-coordinator" = p: p "Project Coordinator" "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
+          "mobile-project-coordinator" = p: p "Mobile Project Coordinator" "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
+          "support-project-coordinator" = p: p "CS Project Coordinator" "Senior Project Managers All,Production Heads,Production Board,PMO,Managers All";
+          "account-manager" = p: p "Account manager" "Account.Managers,Senior Project Managers All,Production Heads,Production Board,PMO";
+          "salesperson" = p: p "Salesperson" "Sales,Production Heads,Production Board,RFX & Business Development,Departments Managers";
         };
 
         package = (name: field: groups:

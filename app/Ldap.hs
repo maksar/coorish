@@ -1,9 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Ldap (technicalCoordinators, LdapConfig) where
 
-import Env (Config (ldapGroups), configValue, prefix)
+import Env (Config, prefix)
 import GHC.Generics (Generic)
 import Ldap.Client
   ( Attr (Attr),
@@ -118,9 +117,9 @@ extractDn part (Dn d) = decodeUtf8 $ lastContainer part $ either (error . show) 
     isS part (S (AttrType t, AttrValue v)) | t == part = pure v
     isS _ _ = Nothing
 
-technicalCoordinators :: LdapConfig -> IO [Text]
-technicalCoordinators config@LdapConfig {..} = do
+technicalCoordinators :: [Text] -> LdapConfig -> IO [Text]
+technicalCoordinators groups config@LdapConfig {..} = do
   withLdap config $ \ldap -> do
-    groupMembers <- join <$> mapM (searchGroup ldap config) $(configValue ldapGroups)
+    groupMembers <- join <$> mapM (searchGroup ldap config) groups
     let members = map (extractDn "CN") $ filter (\dn -> extractDn "OU" dn `elem` usersContainers) groupMembers
     map (\(Dn d) -> d) . join <$> mapM (searchUser ldap config) members

@@ -16,6 +16,7 @@ executable coorish
   default-extensions:
     NoImplicitPrelude
     DeriveGeneric
+    FlexibleInstances
     LambdaCase
     OverloadedStrings
     RecordWildCards
@@ -27,6 +28,7 @@ executable coorish
     , base
     , base64-bytestring
     , case-insensitive
+    , containers
     , email-validate
     , envy
     , http-client
@@ -39,6 +41,7 @@ executable coorish
     , template-haskell
     , text
     , text-ldap
+    , unordered-containers
 
   hs-source-dirs:     app
   default-language:   Haskell2010

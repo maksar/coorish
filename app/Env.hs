@@ -1,8 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
-
-module Env (readConfig, prefix, Config (jiraField, ldapGroups), configValue) where
+module Env (readConfig, prefix, Config (..)) where
 
 import Data.Char (toUpper)
 import Data.Text (splitOn)
@@ -10,13 +6,6 @@ import GHC.Generics (Generic)
 import Language.Haskell.TH.Syntax (Exp, Lift, Q, runIO)
 import Relude
 import System.Envy
-  ( FromEnv (..),
-    Option (customPrefix, dropPrefixCount),
-    Var (..),
-    decodeEnv,
-    defOption,
-    gFromEnvCustom,
-  )
 
 data Config = Config
   { jiraField :: Text,
@@ -39,8 +28,3 @@ instance FromEnv Config where
 
 readConfig :: FromEnv a => IO a
 readConfig = either (error . show) id <$> decodeEnv
-
-configValue :: Lift t => (Config -> t) -> Q Exp
-configValue f = do
-  groups <- runIO (f <$> readConfig @Config)
-  [e|groups|]
