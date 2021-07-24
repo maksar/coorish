@@ -15,7 +15,7 @@ main = do
   ldapConfig <- readConfig @Ldap.LdapConfig
   jiraConfig <- readConfig @Jira.JiraConfig
 
-  activeDirectoryPeople <- Ldap.technicalCoordinators ldapGroups ldapConfig
+  activeDirectoryPeople <- Ldap.groupMembers ldapGroups ldapConfig
   projectCards <- Jira.projectCards jiraField jiraConfig
 
   forM_ projectCards $ \card -> do
@@ -25,4 +25,12 @@ main = do
     let (validPeople, invalidPeople) = partition (\person -> Jira.displayName person `elem` activeDirectoryPeople) people
 
     unless (null invalidPeople) $ do
-      putTextLn $ "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") has some people in '" <> jiraField <> "' field not from '" <> mconcat (intersperse "; " ldapGroups) <> "' AD group: '" <> mconcat (intersperse "; " (map Jira.displayName invalidPeople)) <> "'"
+      putTextLn $
+        "Card '" <> Jira.projectName card <> "' (" <> Jira.key card <> ") "
+          <> "has some people in '"
+          <> jiraField
+          <> "' field not from '"
+          <> mconcat (intersperse "; " ldapGroups)
+          <> "' AD group: '"
+          <> mconcat (intersperse "; " (map Jira.displayName invalidPeople))
+          <> "'"

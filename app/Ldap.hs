@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Ldap (technicalCoordinators, LdapConfig) where
+module Ldap (groupMembers, LdapConfig) where
 
 import Env (Config, prefix)
 import GHC.Generics (Generic)
@@ -117,8 +117,8 @@ extractDn part (Dn d) = decodeUtf8 $ lastContainer part $ either (error . show) 
     isS part (S (AttrType t, AttrValue v)) | t == part = pure v
     isS _ _ = Nothing
 
-technicalCoordinators :: [Text] -> LdapConfig -> IO [Text]
-technicalCoordinators groups config@LdapConfig {..} = do
+groupMembers :: [Text] -> LdapConfig -> IO [Text]
+groupMembers groups config@LdapConfig {..} = do
   withLdap config $ \ldap -> do
     groupMembers <- join <$> mapM (searchGroup ldap config) groups
     let members = map (extractDn "CN") $ filter (\dn -> extractDn "OU" dn `elem` usersContainers) groupMembers
