@@ -1,0 +1,86 @@
+cabal-version:      2.4
+name:               coorish
+version:            0.3.0.0
+author:             Shestakov, Aleksandr
+maintainer:         a.shestakov@itransition.com
+extra-source-files: CHANGELOG.md
+
+library
+  exposed-modules:
+    Coorish
+    Env
+
+  other-modules:
+    Jira
+    Ldap
+
+  hs-source-dirs:     src
+  default-extensions:
+    NoImplicitPrelude
+    DeriveGeneric
+    FlexibleInstances
+    LambdaCase
+    OverloadedStrings
+    RecordWildCards
+    StrictData
+
+  build-depends:
+    , aeson
+    , attoparsec
+    , base
+    , base64-bytestring
+    , case-insensitive
+    , containers
+    , email-validate
+    , envy
+    , http-client
+    , http-client-tls
+    , ldap-client
+    , relude
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , template-haskell
+    , text
+    , text-ldap
+    , unordered-containers
+
+  default-language:   Haskell2010
+
+-- -- executable coorish-console
+-- --   main-is:            Console.hs
+-- --   hs-source-dirs:     app
+-- --   default-extensions:
+-- --     NoImplicitPrelude
+-- --     OverloadedStrings
+-- --     RecordWildCards
+
+-- --   build-depends:
+-- --     , base
+-- --     , coorish
+-- --     , relude
+
+-- --   default-language:   Haskell2010
+
+-- executable coorish-server
+--   main-is:            Server.hs
+--   hs-source-dirs:     app
+--   default-extensions:
+--     NoImplicitPrelude
+--     DataKinds
+--     OverloadedStrings
+--     RecordWildCards
+
+--   ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+--   build-depends:
+--     , base
+--     , concurrency
+--     , coorish
+--     , relude
+--     , servant-server
+--     , text
+--     , wai-extra
+--     , warp
+
+--   default-language:   Haskell2010

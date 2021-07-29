@@ -45,15 +45,16 @@
               "Sales,Production Heads,Production Board,RFX & Business Development,Departments Managers";
         };
 
-        basePackage = haskellPackages.callCabal2nix "coorish" ./. { };
+        basePackage = haskellPackages.callCabal2nix "coorish" ./coorish { };
+        basePackageConsole = haskellPackages.callCabal2nix "console" ./console { coorish = basePackage; };
+        basePackageServer = haskellPackages.callCabal2nix "server" ./server { coorish = basePackage; };
 
         package = (name: field: groups:
-          basePackage.overrideDerivation (drv: {
+          basePackageConsole.overrideDerivation (drv: {
             pname = "coorish-${name}";
             buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
             postInstall = ''
               mv $out/bin/coorish-console $out/bin/coorish-${name}
-              rm $out/bin/coorish-server
               wrapProgram $out/bin/coorish-${name} --set COORISH_JIRA_FIELD "${field}" --set COORISH_LDAP_GROUPS "${groups}"
             '';
           }));
@@ -61,11 +62,10 @@
         flatConfig = (builtins.concatStringsSep ";"
           (map (f: f (a: b: "${a}=${b}")) (lib.attrValues configs)));
 
-        server = basePackage.overrideDerivation (drv: {
+        server = basePackageServer.overrideDerivation (drv: {
           pname = "coorish-server";
           buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
           postInstall = ''
-            rm $out/bin/coorish-console
             wrapProgram $out/bin/coorish-server --set COORISH_SERVER_CONFIG "${flatConfig}"
           '';
         });
@@ -75,8 +75,9 @@
       rec {
         defaultApp = {
           type = "app";
-          program = "${defaultPackage}/bin/coorish-${defaultPackageName}";
+          program = "${configs.${defaultPackageName} (package defaultPackageName)}/bin/coorish-${defaultPackageName}";
         };
+
         defaultPackage = server;
 
         packages = {
