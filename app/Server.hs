@@ -17,7 +17,7 @@ app configs = serve (Proxy :: Proxy WebHookAPI) $ webhookVerify configs
 
 webhookVerify :: [Config] -> Handler Text
 webhookVerify configs = do
-  result <- liftIO $ mapM forConfig configs
+  result <- liftIO $ mapConcurrently forConfig configs
   return $ unlines $ mconcat result
 
 main :: IO ()
