@@ -1,40 +1,32 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Jira (projectCards, JiraConfig, ProjectCard (key, projectName, people), Person (displayName)) where
 
 import Data.Aeson
   ( FromJSON (parseJSON),
-    KeyValue ((.=)),
-    Object,
-    ToJSON (toJSON),
-    object,
     withObject,
     (.:),
     (.:?),
   )
-import Data.Aeson.Types (Object, Parser, Value (..))
-import Data.Attoparsec.ByteString (parseOnly)
+import Data.Aeson.Types (Parser, Value (..))
 import Data.ByteString.Base64 (encode)
 import Data.CaseInsensitive (mk)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Text (replace)
-import Env (Config (jiraField), prefix)
-import GHC.Generics (Generic)
+import Env (prefix)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Relude
 import Relude.Extra
 import Servant.API
-  ( Capture,
-    JSON,
-    NoContent,
+  ( JSON,
     QueryParam',
-    ReqBody,
     Required,
-    StdMethod (GET, PUT),
+    StdMethod (GET),
     Strict,
     Verb,
     type (:<|>) (..),
@@ -125,8 +117,8 @@ searchForIssuesUsingJql :<|> obtainFieldConnfig = client (Proxy :: Proxy JiraAPI
 runClient :: JiraConfig -> ClientM a -> IO a
 runClient JiraConfig {..} cl = do
   manager <- liftIO $ newManager tlsManagerSettings
-  url <- parseBaseUrl $ toString url
-  result <- runClientM cl $ (mkClientEnv manager url) {makeClientRequest = const $ defaultMakeClientRequest url . addHeader (mk "Authorization") ("Basic " ++ decodeUtf8 (encode $ encodeUtf8 (username <> ":" <> password)))}
+  serverUrl <- parseBaseUrl $ toString url
+  result <- runClientM cl $ (mkClientEnv manager serverUrl) {makeClientRequest = const $ defaultMakeClientRequest serverUrl . addHeader (mk "Authorization") ("Basic " ++ decodeUtf8 (encode $ encodeUtf8 (username <> ":" <> password)))}
   return $ either (error . show) id result
 
 projectCards :: Text -> JiraConfig -> IO [ProjectCard]

@@ -2,8 +2,7 @@
 
 module Ldap (groupMembers, LdapConfig) where
 
-import Env (Config, prefix)
-import GHC.Generics (Generic)
+import Env (prefix)
 import Ldap.Client
   ( Attr (Attr),
     Dn (..),
@@ -112,7 +111,7 @@ extractDn part (Dn d) = decodeUtf8 $ lastContainer part $ either (error . show) 
 
     last [] = error "Could not extract " <> part <> " from " <> encodeUtf8 d
     last [x] = x
-    last (x : xs) = last xs
+    last (_ : xs) = last xs
 
     isS part (S (AttrType t, AttrValue v)) | t == part = pure v
     isS _ _ = Nothing
@@ -120,6 +119,6 @@ extractDn part (Dn d) = decodeUtf8 $ lastContainer part $ either (error . show) 
 groupMembers :: [Text] -> LdapConfig -> IO [Text]
 groupMembers groups config@LdapConfig {..} = do
   withLdap config $ \ldap -> do
-    groupMembers <- join <$> mapM (searchGroup ldap config) groups
-    let members = map (extractDn "CN") $ filter (\dn -> extractDn "OU" dn `elem` usersContainers) groupMembers
+    gm <- join <$> mapM (searchGroup ldap config) groups
+    let members = map (extractDn "CN") $ filter (\dn -> extractDn "OU" dn `elem` usersContainers) gm
     map (\(Dn d) -> d) . join <$> mapM (searchUser ldap config) members

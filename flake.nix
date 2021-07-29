@@ -52,10 +52,23 @@
             pname = "coorish-${name}";
             buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
             postInstall = ''
-              mv $out/bin/coorish $out/bin/coorish-${name}
+              mv $out/bin/coorish-console $out/bin/coorish-${name}
+              rm $out/bin/coorish-server
               wrapProgram $out/bin/coorish-${name} --set COORISH_JIRA_FIELD "${field}" --set COORISH_LDAP_GROUPS "${groups}"
             '';
           }));
+
+        flatConfig = (builtins.concatStringsSep ";"
+          (map (f: f (a: b: "${a}=${b}")) (lib.attrValues configs)));
+
+        server = basePackage.overrideDerivation (drv: {
+          pname = "coorish-server";
+          buildInputs = drv.buildInputs or [ ] ++ [ pkgs.makeWrapper ];
+          postInstall = ''
+            rm $out/bin/coorish-console
+            wrapProgram $out/bin/coorish-server --set COORISH_SERVER_CONFIG "${flatConfig}"
+          '';
+        });
 
         cabal-fmt = haskellPackages.cabal-fmt;
       in
@@ -64,9 +77,11 @@
           type = "app";
           program = "${defaultPackage}/bin/coorish-${defaultPackageName}";
         };
-        defaultPackage = basePackage;
+        defaultPackage = server;
 
-        packages = builtins.mapAttrs (n: l: l (package n)) configs;
+        packages = {
+          server = server;
+        } // (builtins.mapAttrs (n: l: l (package n)) configs);
 
         checks = {
           pre-commit-check = pre-commit-hooks.lib.${system}.run {
@@ -103,6 +118,7 @@
         ).envFunc { }).overrideAttrs (f:
           (configs.${defaultPackageName} config) // {
             inherit (self.checks.${system}.pre-commit-check) shellHook;
+            COORISH_SERVER_CONFIG = flatConfig;
           });
       });
 }

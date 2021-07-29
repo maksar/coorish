@@ -2,8 +2,6 @@ module Env (readConfig, prefix, Config (..)) where
 
 import Data.Char (toUpper)
 import Data.Text (splitOn)
-import GHC.Generics (Generic)
-import Language.Haskell.TH.Syntax (Exp, Lift, Q, runIO)
 import Relude
 import System.Envy
 
