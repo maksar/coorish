@@ -132,4 +132,4 @@ data Field (key :: Symbol) = Field {fieldName :: Text, fieldId :: Text}
 
 projectCards :: KnownSymbol key => Field key -> JiraConfig -> IO [ProjectCard key]
 projectCards Field {..} config@JiraConfig {..} = do
-  runClient config $ cards <$> searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) (fieldName <> ",summary") 1000
+  runClient config $ cards <$> searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) (fieldId <> ",summary") 1000
