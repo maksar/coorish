@@ -1,12 +1,15 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
-module Jira (projectCards, JiraConfig, ProjectCard (key, projectName, people), Person (displayName)) where
+module Jira (projectCards, obtainFieldId, JiraConfig, ProjectCard (key, projectName, people), Person (displayName), Field (..)) where
 
 import Data.Aeson
   ( FromJSON (parseJSON),
+    decode,
     withObject,
     (.:),
     (.:?),
@@ -18,6 +21,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Text (replace)
 import Env (prefix)
+import GHC.TypeLits
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Relude
@@ -70,30 +74,26 @@ data Person = Person
 instance FromJSON Person where
   parseJSON = withObject "person" $ \field -> Person <$> field .: "name" <*> field .: "displayName"
 
-data ProjectCard = ProjectCard
+data ProjectCard (n :: Symbol) = ProjectCard
   { key :: Text,
     projectName :: Text,
     people :: [Person]
   }
   deriving (Show, Eq, Generic)
 
-instance FromJSON (Text -> ProjectCard) where
+instance KnownSymbol key => FromJSON (ProjectCard key) where
   parseJSON = withObject "card" $ \card -> do
+    let name = symbolVal (Proxy @key)
     key <- card .: "key"
     fields <- card .: "fields"
     projectName <- fields .: "summary"
-    allPossiblePeople <- M.fromList <$> mapM parser (HM.toList fields)
-    pure $ \feild -> ProjectCard key projectName $ fromMaybe [] $ join $ lookup feild allPossiblePeople
+    peopleMaybe <- fields .:? fromString name <|> fmap (replicate 1) <$> fields .:? fromString name
+    pure $ ProjectCard key projectName $ fromMaybe [] peopleMaybe
 
-parser :: FromJSON a => (Text, Value) -> Parser (Text, Maybe [a])
-parser (x, field) = (x,) <$> (parseJSON field <|> fmap (replicate 1) <$> parseJSON field) <|> pure (x, Nothing)
+newtype SearchResult (key :: Symbol) = SearchResult {cards :: [ProjectCard key]} deriving (Show, Eq, Generic)
 
-newtype SearchResult = SearchResult {cards :: [ProjectCard]} deriving (Show, Eq, Generic)
-
-instance FromJSON (Text -> SearchResult) where
-  parseJSON = withObject "response" $ \response -> do
-    cards <- sequence <$> response .: "issues"
-    pure $ \field -> SearchResult $ cards field
+instance KnownSymbol key => FromJSON (SearchResult key) where
+  parseJSON = withObject "response" $ \response -> SearchResult <$> response .: "issues"
 
 data JiraField = JiraField
   { jiraFieldId :: Text,
@@ -106,13 +106,20 @@ instance FromJSON JiraField where
 
 type RequiredParam = QueryParam' '[Strict, Required]
 
-type JiraAPI =
-  "rest" :> "api" :> "latest" :> "search" :> RequiredParam "jql" Text :> RequiredParam "fields" Text :> RequiredParam "maxResults" Int :> Verb 'GET 200 '[JSON] (Text -> SearchResult)
-    :<|> "rest" :> "api" :> "latest" :> "field" :> Verb 'GET 200 '[JSON] [JiraField]
+type JiraAPI (key :: Symbol) =
+  "rest" :> "api" :> "latest" :> "search" :> RequiredParam "jql" Text :> RequiredParam "fields" Text :> RequiredParam "maxResults" Int :> Verb 'GET 200 '[JSON] (SearchResult key)
 
-searchForIssuesUsingJql :: Text -> Text -> Int -> ClientM (Text -> SearchResult)
-obtainFieldConnfig :: ClientM [JiraField]
-searchForIssuesUsingJql :<|> obtainFieldConnfig = client (Proxy :: Proxy JiraAPI)
+type JiraInternalAPI = "rest" :> "api" :> "latest" :> "field" :> Verb 'GET 200 '[JSON] [JiraField]
+
+obtainFieldId :: JiraConfig -> Text -> IO Text
+obtainFieldId config fieldName = do
+  runClient config $ do
+    fieldsConfig <- client (Proxy :: Proxy JiraInternalAPI)
+    let fieldsMap = M.fromList $ map (\(JiraField i n) -> (n, i)) fieldsConfig
+    pure $ fromMaybe (error "No field was found") $ lookup fieldName fieldsMap
+
+searchForIssuesUsingJql :: KnownSymbol n => Text -> Text -> Int -> ClientM (SearchResult n)
+searchForIssuesUsingJql = client (Proxy :: Proxy (JiraAPI n))
 
 runClient :: JiraConfig -> ClientM a -> IO a
 runClient JiraConfig {..} cl = do
@@ -121,11 +128,8 @@ runClient JiraConfig {..} cl = do
   result <- runClientM cl $ (mkClientEnv manager serverUrl) {makeClientRequest = const $ defaultMakeClientRequest serverUrl . addHeader (mk "Authorization") ("Basic " ++ decodeUtf8 (encode $ encodeUtf8 (username <> ":" <> password)))}
   return $ either (error . show) id result
 
-projectCards :: Text -> JiraConfig -> IO [ProjectCard]
-projectCards fieldName config@JiraConfig {..} = do
-  runClient config $ do
-    fieldsConfig <- obtainFieldConnfig
-    let fieldsMap = M.fromList $ map (\(JiraField i n) -> (n, i)) fieldsConfig
-        fieldId = fromMaybe (error "No field was found") $ lookup fieldName fieldsMap
-    searchResults <- searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) (fieldId <> ",summary") 1000
-    pure $ cards $ searchResults fieldId
+data Field (key :: Symbol) = Field {fieldName :: Text, fieldId :: Text}
+
+projectCards :: KnownSymbol key => Field key -> JiraConfig -> IO [ProjectCard key]
+projectCards Field {..} config@JiraConfig {..} = do
+  runClient config $ cards <$> searchForIssuesUsingJql (replace "{fieldName}" fieldName jql) (fieldName <> ",summary") 1000

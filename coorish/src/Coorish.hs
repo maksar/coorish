@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Coorish (forConfig) where
@@ -5,6 +6,7 @@ module Coorish (forConfig) where
 import Control.Monad
 import Data.List (partition)
 import Env
+import GHC.TypeLits
 import qualified Jira
 import qualified Ldap
 import Relude
@@ -18,7 +20,10 @@ forConfig Config {..} = do
   jiraConfig <- readConfig @Jira.JiraConfig
 
   activeDirectoryPeople <- Ldap.groupMembers ldapGroups ldapConfig
-  projectCards <- Jira.projectCards jiraField jiraConfig
+
+  fieldId <- Jira.obtainFieldId jiraConfig jiraField
+  SomeSymbol (Proxy :: Proxy key) <- pure $ someSymbolVal $ toString fieldId
+  projectCards <- Jira.projectCards (Jira.Field @key jiraField fieldId) jiraConfig
 
   flip mapMaybeM projectCards $ \card -> do
     let people = Jira.people card
