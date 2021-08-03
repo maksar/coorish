@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               coorish
-version:            0.3.0.1
+version:            0.3.0.2
 author:             Shestakov, Aleksandr
 maintainer:         a.shestakov@itransition.com
 extra-source-files: CHANGELOG.md
@@ -36,6 +36,7 @@ library
     , http-client
     , http-client-tls
     , ldap-client
+    , reflection
     , relude
     , servant
     , servant-client

@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "coorish/src"
+      component: "lib:coorish"
+
+    - path: "console/app"
+      component: "coorish:exe:coorish-console"
+
+    - path: "server/app"
+      component: "coorish:exe:coorish-server"

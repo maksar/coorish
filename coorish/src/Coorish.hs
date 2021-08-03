@@ -5,6 +5,7 @@ module Coorish (forConfig) where
 
 import Control.Monad
 import Data.List (partition)
+import Data.Reflection
 import Env
 import GHC.TypeLits
 import qualified Jira
@@ -21,9 +22,7 @@ forConfig Config {..} = do
 
   activeDirectoryPeople <- Ldap.groupMembers ldapGroups ldapConfig
 
-  fieldId <- Jira.obtainFieldId jiraConfig jiraField
-  SomeSymbol (Proxy :: Proxy key) <- pure $ someSymbolVal $ toString fieldId
-  projectCards <- Jira.projectCards (Jira.Field @key jiraField fieldId) jiraConfig
+  projectCards <- Jira.projectCards jiraField jiraConfig
 
   flip mapMaybeM projectCards $ \card -> do
     let people = Jira.people card
